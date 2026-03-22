@@ -35,22 +35,22 @@ K_GET_CATEGORY_LENGTH = 1
 K_STATS_LENGTH = 1
 K_CATEGORY_PARTS_LENGTH = 2
 
-DATE_T = tuple[int, int, int]
-K_DATE_T_LENGTH = 3
-NUMBER_T = float | int
-CATEGORY_T = str
+DateT = tuple[int, int, int]
+K_DATE_T = 3
+NumberT = float | int
+CategoryT = str
 
-EXTRACTED_INCOME_T = tuple[NUMBER_T, DATE_T] | None
-EXTRACTED_COST_T = tuple[CATEGORY_T, NUMBER_T, DATE_T] | None
-EXTRACTED_STATS_T = DATE_T | None
+ExtractedIncomeT = tuple[NumberT, DateT] | None
+ExtractedCostT = tuple[CategoryT, NumberT, DateT] | None
+ExtractedStatsT = DateT | None
 
-COSTS_T = dict[CATEGORY_T, NUMBER_T]
-DAY_STATS_T = tuple[NUMBER_T, COSTS_T]
-DATABASE_T = dict[DATE_T, DAY_STATS_T]
-database: DATABASE_T = {}
+CostsT = dict[CategoryT, NumberT]
+DayStatsT = tuple[NumberT, CostsT]
+DataBaseT = dict[DateT, DayStatsT]
+database: DataBaseT = {}
 financial_transactions_storage: list[dict[str, Any]] = []
 
-STATS_T = tuple[NUMBER_T, NUMBER_T, NUMBER_T, COSTS_T]
+StatsT = tuple[NumberT, NumberT, NumberT, CostsT]
 
 
 def is_leap_year(year: int) -> bool:
@@ -87,10 +87,10 @@ def is_valid_date(day: int, month: int, year: int) -> bool:
     return day <= K_THIRTY_ONE
 
 
-def extract_date(maybe_dt: str) -> DATE_T | None:
+def extract_date(maybe_dt: str) -> DateT | None:
     parsed_input = maybe_dt.split("-")
 
-    if len(parsed_input) != K_DATE_T_LENGTH:
+    if len(parsed_input) != K_DATE_T:
         return None
 
     for element in parsed_input:
@@ -105,23 +105,23 @@ def extract_date(maybe_dt: str) -> DATE_T | None:
     return day, month, year
 
 
-def date_to_str(date: DATE_T) -> str:
+def date_to_str(date: DateT) -> str:
     return f"{date[0]:02d}-{date[1]:02d}-{date[2]}"
 
 
 def extract_digit_and_number_from_str(input_str: str) -> tuple[int, str]:
-    index: int = 0
-    digit: int = 0
+    index = 0
+    digit = 1
     while index < len(input_str) and input_str[index] in ("+", "-"):
         if input_str[index] == "-":
-            digit = (digit + 1) % 2
+            digit = -digit
 
         index += 1
 
     return digit, input_str[index:]
 
 
-def extract_number(input_str: str) -> NUMBER_T | None:
+def extract_number(input_str: str) -> NumberT | None:
     digit, current_str = extract_digit_and_number_from_str(input_str)
 
     if current_str == "" or current_str.startswith(",") or current_str.endswith(","):
@@ -139,9 +139,9 @@ def extract_number(input_str: str) -> NUMBER_T | None:
             return None
 
     if cnt_of_commas == 0:
-        return int((-1) ** digit) * int(current_str)
+        return digit * int(current_str)
 
-    return int((-1) ** digit) * float(current_str)
+    return digit * float(current_str)
 
 
 # =
@@ -149,7 +149,7 @@ def extract_number(input_str: str) -> NUMBER_T | None:
 # =
 
 
-def add_income(amount: NUMBER_T, date: DATE_T) -> None:
+def add_income(amount: NumberT, date: DateT) -> None:
     if date not in database:
         database[date] = 0, {}
 
@@ -157,7 +157,7 @@ def add_income(amount: NUMBER_T, date: DATE_T) -> None:
     database[date] = income + amount, costs
 
 
-def income_handler(amount: NUMBER_T, income_date: str) -> str:
+def income_handler(amount: NumberT, income_date: str) -> str:
     financial_transactions_storage.append({})
     if amount <= 0:
         return NONPOSITIVE_VALUE_MSG
@@ -193,9 +193,6 @@ def handle_income(input_body: list[str]) -> None:
 
 
 def is_category_valid(category: str) -> bool:
-    if category == "Other":
-        return True
-
     if "." in category or "," in category or "::" not in category:
         return False
 
@@ -204,11 +201,10 @@ def is_category_valid(category: str) -> bool:
         return False
     common_category, target_category = parts
 
-    return (common_category in EXPENSE_CATEGORIES and
-            target_category in EXPENSE_CATEGORIES[common_category])
+    return common_category in EXPENSE_CATEGORIES and target_category in EXPENSE_CATEGORIES[common_category]
 
 
-def add_cost(category: CATEGORY_T, amount: NUMBER_T, date: DATE_T) -> None:
+def add_cost(category: CategoryT, amount: NumberT, date: DateT) -> None:
     if date not in database:
         database[date] = 0, {}
 
@@ -220,8 +216,7 @@ def add_cost(category: CATEGORY_T, amount: NUMBER_T, date: DATE_T) -> None:
     database[date] = income, costs
 
 
-def cost_handler(category: CATEGORY_T,
-                 amount: NUMBER_T, income_date: str) -> str:
+def cost_handler(category: CategoryT, amount: NumberT, income_date: str) -> str:
     financial_transactions_storage.append({})
     if not is_category_valid(category):
         return NOT_EXISTS_CATEGORY
@@ -233,8 +228,7 @@ def cost_handler(category: CATEGORY_T,
     if date is None:
         return INCORRECT_DATE_MSG
 
-    financial_transactions_storage[-1] = (
-        {"category": category, "amount": amount, "date": date})
+    financial_transactions_storage[-1] = {"category": category, "amount": amount, "date": date}
     add_cost(category, amount, date)
 
     return OP_SUCCESS_MSG
@@ -277,7 +271,11 @@ def handle_cost(input_body: list[str]) -> None:
 # =
 
 
-def process_extract_stats(input_list: list[str]) -> EXTRACTED_STATS_T:
+def stats_handler(report_date: str) -> str:
+    return f"Statistic for {report_date}"
+
+
+def process_extract_stats(input_list: list[str]) -> ExtractedStatsT:
     if len(input_list) != K_STATS_LENGTH:
         print(UNKNOWN_COMMAND_MSG)
         return None
@@ -290,21 +288,21 @@ def process_extract_stats(input_list: list[str]) -> EXTRACTED_STATS_T:
     return date
 
 
-def is_same_month(lhs_date: DATE_T, rhs_date: DATE_T) -> bool:
+def is_same_month(lhs_date: DateT, rhs_date: DateT) -> bool:
     if lhs_date[2] != rhs_date[2]:
         return False
 
     return lhs_date[1] == rhs_date[1]
 
 
-def reverse_date(date: DATE_T) -> DATE_T:
+def reverse_date(date: DateT) -> DateT:
     return date[2], date[1], date[0]
 
 
-def get_stats(date: DATE_T) -> STATS_T:
-    total_fortune: NUMBER_T = 0
-    month_income: NUMBER_T = 0
-    month_costs_by_category: COSTS_T = {}
+def get_stats(date: DateT) -> StatsT:
+    total_fortune: NumberT = 0
+    month_income: NumberT = 0
+    month_costs_by_category: CostsT = {}
 
     for key_date in sorted(database, key=reverse_date):
         if reverse_date(key_date) > reverse_date(date):
@@ -318,18 +316,18 @@ def get_stats(date: DATE_T) -> STATS_T:
 
             for category in database[key_date][1]:
                 month_costs_by_category[category] = (
-                    month_costs_by_category.get(category, 0)
-                    + database[key_date][1][category]
+                    month_costs_by_category.get(category, 0) + database[key_date][1][category]
                 )
 
-    return (total_fortune,
-            month_income,
-            sum(month_costs_by_category.values()),
-            month_costs_by_category,
-            )
+    return (
+        total_fortune,
+        month_income,
+        sum(month_costs_by_category.values()),
+        month_costs_by_category,
+    )
 
 
-def print_stats(date: DATE_T, stats: STATS_T) -> None:
+def print_stats(date: DateT, stats: StatsT) -> None:
     diff = stats[1] - stats[2]
     kind = "profit" if diff > 0 else "loss"
 
@@ -337,21 +335,19 @@ def print_stats(date: DATE_T, stats: STATS_T) -> None:
     print(f"Total capital: {stats[0]:.2f} rubles")
     print(f"This month, the {kind} amounted to {abs(diff):.2f} rubles.")
 
-    print("Income: "
-          f"{stats[1]:.2f} rubles")
-    print("Expenses: "
-          f"{stats[2]:.2f} rubles")
+    print(f"Income: {stats[1]:.2f} rubles")
+    print(f"Expenses: {stats[2]:.2f} rubles")
 
     print("\nDetails (category: amount):")
 
     index = 1
-    for (category, amount) in sorted(stats[3].items()):
+    for category, amount in sorted(stats[3].items()):
         print(f"{index}. {category}: {amount:.2f}")
         index += 1
 
 
 def handle_stats(input_body: list[str]) -> None:
-    extracted_stats_data: EXTRACTED_STATS_T = process_extract_stats(input_body)
+    extracted_stats_data: ExtractedStatsT = process_extract_stats(input_body)
     if extracted_stats_data is None:
         return
 
@@ -360,17 +356,18 @@ def handle_stats(input_body: list[str]) -> None:
 
 
 def handle_command(command: str, body: list[str]) -> None:
-    if command == "income":
-        handle_income(body)
+    match command:
+        case "income":
+            handle_income(body)
 
-    elif command == "cost":
-        handle_cost(body)
+        case "cost":
+            handle_cost(body)
 
-    elif command == "stats":
-        handle_stats(body)
+        case "stats":
+            handle_stats(body)
 
-    else:
-        print(UNKNOWN_COMMAND_MSG)
+        case _:
+            print(UNKNOWN_COMMAND_MSG)
 
 
 def main() -> None:
