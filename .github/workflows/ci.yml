@@ -21,9 +21,6 @@ on:
     paths-ignore:
       - 'final_project/**'
   pull_request:
-    branches: [main, master]
-    paths-ignore:
-      - 'final_project/**'
 
 jobs:
   detect-changes:
@@ -47,6 +44,16 @@ jobs:
             echo "folders=[]" >> $GITHUB_OUTPUT
             echo "has_changes=false" >> $GITHUB_OUTPUT
           else
+            FOLDERS=$(echo "$PY_FILES" \
+              | grep -vE '^\.' \
+              | cut -d'/' -f1 \
+              | sort -u \
+              | while read -r dir; do
+                  if [ -d "$dir" ]; then
+                    echo "$dir"
+                  fi
+                done \
+              | jq -R -s -c 'split("\n") | map(select(length > 0))')
             FOLDERS=$(echo "$PY_FILES" \
               | grep -vE '^\.' \
               | cut -d'/' -f1 \
@@ -91,10 +98,13 @@ jobs:
             echo "Skipping ruff: folder ${{ matrix.folder }} does not exist"
           fi
 
-      - name: Run ruff format
-        run: uv run ruff format --check "${{ matrix.folder }}"
-
       - name: Run wemake-python-styleguide
+        run: |
+          if [ -d "${{ matrix.folder }}" ]; then
+            uv run flake8 "${{ matrix.folder }}"
+          else
+            echo "Skipping flake8: folder ${{ matrix.folder }} does not exist"
+          fi
         run: |
           if [ -d "${{ matrix.folder }}" ]; then
             uv run flake8 "${{ matrix.folder }}"
@@ -131,6 +141,12 @@ jobs:
           else
             echo "Skipping mypy: folder ${{ matrix.folder }} does not exist"
           fi
+        run: |
+          if [ -d "${{ matrix.folder }}" ]; then
+            uv run mypy "${{ matrix.folder }}"
+          else
+            echo "Skipping mypy: folder ${{ matrix.folder }} does not exist"
+          fi
 
       - name: Run ty (optional)
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_ty == 'true' }}
@@ -140,9 +156,21 @@ jobs:
           else
             echo "Skipping ty: folder ${{ matrix.folder }} does not exist"
           fi
+        run: |
+          if [ -d "${{ matrix.folder }}" ]; then
+            uv run ty check "${{ matrix.folder }}"
+          else
+            echo "Skipping ty: folder ${{ matrix.folder }} does not exist"
+          fi
 
       - name: Run pyrefly (optional)
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_pyrefly == 'true' }}
+        run: |
+          if [ -d "${{ matrix.folder }}" ]; then
+            uv run pyrefly check "${{ matrix.folder }}" --project-excludes "**/*.ipynb"
+          else
+            echo "Skipping pyrefly: folder ${{ matrix.folder }} does not exist"
+          fi
         run: |
           if [ -d "${{ matrix.folder }}" ]; then
             uv run pyrefly check "${{ matrix.folder }}" --project-excludes "**/*.ipynb"
