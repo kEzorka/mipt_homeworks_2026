@@ -38,7 +38,7 @@ class BaseQueuePolicy(Policy[K]):
         return bool(self._order)
 
     def get_key_to_evict(self) -> K | None:
-        if self._needs_eviction:
+        if not self._needs_eviction:
             return None
 
         return self._order[0]
@@ -54,7 +54,7 @@ class BaseQueuePolicy(Policy[K]):
 
     @property
     def _needs_eviction(self) -> bool:
-        return not self.has_keys or len(self._order) < self.capacity
+        return self.has_keys and len(self._order) > self.capacity
 
 
 class FIFOPolicy(BaseQueuePolicy[K]):
@@ -90,7 +90,7 @@ class BaseDictPolicy(Policy[K]):
 
     @property
     def _needs_eviction(self) -> bool:
-        return not self.has_keys or len(self._key_counter) < self.capacity
+        return self.has_keys and len(self._key_counter) > self.capacity
 
 
 class LFUPolicy(BaseDictPolicy[K]):
@@ -101,7 +101,7 @@ class LFUPolicy(BaseDictPolicy[K]):
         self._key_counter[key] += 1
 
     def get_key_to_evict(self) -> K | None:
-        if self._needs_eviction:
+        if not self._needs_eviction:
             return None
 
         last_added_element = next(reversed(self._key_counter))
@@ -127,7 +127,7 @@ class MIPTCache(Cache[K, V]):
         self.storage.set(key, value)
 
         key_to_evict = self.policy.get_key_to_evict()
-        if key_to_evict:
+        if key_to_evict is not None:
             self.storage.remove(key_to_evict)
             self.policy.remove_key(key_to_evict)
 
@@ -152,4 +152,16 @@ class CachedProperty[V]:
         self._func = func
 
     def __get__(self, instance: HasCache[Any, Any] | None, owner: type) -> V:
-        
+        if instance is None:
+            return self  # type: ignore[return-value]
+
+        key = str(instance) + self._func.__name__
+
+        if not instance.cache.exists(key):
+            self._cache_value(key, instance)
+
+        return instance.cache.get(key)  # type: ignore[return-value]
+
+    def _cache_value(self, key: str, instance: HasCache[Any, Any]) -> None:
+        value = self._func(instance)
+        instance.cache.set(key, value)
