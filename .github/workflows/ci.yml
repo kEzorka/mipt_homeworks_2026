@@ -6,6 +6,7 @@ on:
       package_path:
         description: 'Path to package directory'
         required: true
+        type: string
       run_ty:
         description: 'Run ty type checker'
         required: false
@@ -98,19 +99,6 @@ jobs:
             echo "Skipping ruff: folder ${{ matrix.folder }} does not exist"
           fi
 
-      - name: Run wemake-python-styleguide
-        run: |
-          if [ -d "${{ matrix.folder }}" ]; then
-            uv run flake8 "${{ matrix.folder }}"
-          else
-            echo "Skipping flake8: folder ${{ matrix.folder }} does not exist"
-          fi
-        run: |
-          if [ -d "${{ matrix.folder }}" ]; then
-            uv run flake8 "${{ matrix.folder }}"
-          else
-            echo "Skipping flake8: folder ${{ matrix.folder }} does not exist"
-          fi
 
   typecheck:
     needs: detect-changes
@@ -141,12 +129,6 @@ jobs:
           else
             echo "Skipping mypy: folder ${{ matrix.folder }} does not exist"
           fi
-        run: |
-          if [ -d "${{ matrix.folder }}" ]; then
-            uv run mypy "${{ matrix.folder }}"
-          else
-            echo "Skipping mypy: folder ${{ matrix.folder }} does not exist"
-          fi
 
       - name: Run ty (optional)
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_ty == 'true' }}
@@ -156,21 +138,9 @@ jobs:
           else
             echo "Skipping ty: folder ${{ matrix.folder }} does not exist"
           fi
-        run: |
-          if [ -d "${{ matrix.folder }}" ]; then
-            uv run ty check "${{ matrix.folder }}"
-          else
-            echo "Skipping ty: folder ${{ matrix.folder }} does not exist"
-          fi
 
       - name: Run pyrefly (optional)
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_pyrefly == 'true' }}
-        run: |
-          if [ -d "${{ matrix.folder }}" ]; then
-            uv run pyrefly check "${{ matrix.folder }}" --project-excludes "**/*.ipynb"
-          else
-            echo "Skipping pyrefly: folder ${{ matrix.folder }} does not exist"
-          fi
         run: |
           if [ -d "${{ matrix.folder }}" ]; then
             uv run pyrefly check "${{ matrix.folder }}" --project-excludes "**/*.ipynb"
